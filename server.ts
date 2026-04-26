@@ -100,15 +100,19 @@ async function startServer() {
     if (!genAINew) return res.status(500).json({ error: "Gemini Key missing" });
     try {
       const { prompt } = req.body;
-      const response = await genAINew.models.generateContent({
-        model: "gemini-2.0-flash-preview-image-generation",
-        contents: prompt,
-        config: { responseModalities: ["IMAGE"] },
+      const response = await genAINew.models.generateImages({
+        model: "imagen-3.0-generate-002",
+        prompt,
+        config: {
+          numberOfImages: 1,
+          aspectRatio: "1:1",
+          outputMimeType: "image/jpeg",
+        },
       });
 
-      const part = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
-      if (part?.inlineData) {
-        return res.json({ image: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` });
+      const imageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+      if (imageBytes) {
+        return res.json({ image: `data:image/jpeg;base64,${imageBytes}` });
       }
       res.status(404).json({ error: "No image returned by model" });
     } catch (error: any) {
