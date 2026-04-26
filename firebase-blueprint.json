@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "User": {
+      "title": "Usuario",
+      "description": "Perfil de usuario del Virtual Stylist",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "genderPreference": { "type": "string", "enum": ["men", "women"] },
+        "lastSeen": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "StylingEntry": {
+      "title": "Entrada de Estilo",
+      "description": "Un registro de una prenda analizada y sus planes sugeridos",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "itemName": { "type": "string" },
+        "itemAnalysis": { "type": "object" },
+        "outfitPlans": { "type": "array" },
+        "preferredOccasion": { "type": "string" },
+        "gender": { "type": "string" },
+        "ageRange": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "itemName", "timestamp"]
+    },
+    "Feedback": {
+      "title": "Feedback de Outfit",
+      "description": "Like o dislike sobre un outfit específico",
+      "type": "object",
+      "properties": {
+        "outfitId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "dislike"] },
+        "occasion": { "type": "string" },
+        "pieces": { "type": "array" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["outfitId", "userId", "type", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Perfiles de usuario"
+    },
+    "/users/{userId}/history/{entryId}": {
+      "schema": "StylingEntry",
+      "description": "Historial de análisis y planes"
+    },
+    "/users/{userId}/feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Retroalimentación sobre outfits sugeridos"
+    }
+  }
+}

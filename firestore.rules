@@ -1,0 +1,70 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // catch-all deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Validation Schemas
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) 
+        && data.uid == request.auth.uid 
+        && data.email is string && data.email.size() <= 256;
+    }
+
+    function isValidStylingEntry(data) {
+      return data.keys().hasAll(['userId', 'itemName', 'timestamp'])
+        && data.userId == request.auth.uid
+        && data.itemName is string && data.itemName.size() <= 150
+        && data.timestamp is timestamp;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'type', 'timestamp'])
+        && data.userId == request.auth.uid
+        && data.type in ['like', 'dislike']
+        && data.timestamp is timestamp;
+    }
+
+    // Collections
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) 
+        && incoming().diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'lastSeen', 'genderPreference']);
+
+      match /history/{entryId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidStylingEntry(incoming()) && isValidId(entryId);
+        allow delete: if isOwner(userId);
+      }
+
+      match /feedbacks/{feedbackId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidFeedback(incoming()) && isValidId(feedbackId);
+        allow update: if isOwner(userId) && isValidFeedback(incoming()) 
+          && incoming().diff(resource.data).affectedKeys().hasOnly(['type', 'timestamp']);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
