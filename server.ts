@@ -5,7 +5,6 @@ import { fileURLToPath } from "url";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import * as GoogleGenerativeAIModule from "@google/generative-ai";
-import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -25,7 +24,6 @@ if (ANTHROPIC_KEY) {
 }
 
 const genAI = GEMINI_KEY ? new GoogleGenerativeAIModule.GoogleGenerativeAI(GEMINI_KEY) : null;
-const genAINew = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
 const anthropic = ANTHROPIC_KEY ? new Anthropic({ apiKey: ANTHROPIC_KEY }) : null;
 
 // Helper to normalize occasions on server before sending to client
@@ -97,23 +95,21 @@ async function startServer() {
   });
 
   app.post("/api/gemini/generate-image", async (req, res) => {
-    if (!genAINew) return res.status(500).json({ error: "Gemini Key missing" });
+    if (!genAI) return res.status(500).json({ error: "Gemini Key missing" });
     try {
       const { prompt } = req.body;
-      const response = await genAINew.models.generateContent({
-        model: "gemini-2.0-flash-preview-image-generation",
-        contents: prompt,
-        config: { responseModalities: ["IMAGE"] },
-      });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const part = response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
       if (part?.inlineData) {
-        return res.json({ image: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}` });
+        return res.json({ image: `data:image/png;base64,${part.inlineData.data}` });
       }
-      res.status(404).json({ error: "No image returned by model" });
+      res.status(404).json({ error: "No image returned" });
     } catch (error: any) {
-      console.error("Image Gen Error:", error);
-      res.status(500).json({ error: `Image Gen Error: ${error.message}` });
+      console.error("Gemini Image Gen Server Error:", error);
+      res.status(500).json({ error: `Gemini Image Error: ${error.message}` });
     }
   });
 

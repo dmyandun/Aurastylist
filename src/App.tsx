@@ -10,7 +10,7 @@ import OutfitCard from './components/OutfitCard';
 import Loader from './components/Loader';
 
 export default function App() {
-  const [status, setStatus] = useState<'idle' | 'analyzing' | 'planning' | 'completed' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'planning' | 'visualizing' | 'completed' | 'error'>('idle');
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [gender, setGender] = useState<'men' | 'women'>('women');
@@ -21,7 +21,6 @@ export default function App() {
   const [outfitPlans, setOutfitPlans] = useState<OutfitPlan[]>([]);
   const [outfitImages, setOutfitImages] = useState<Record<string, string>>({});
   const [feedbacks, setFeedbacks] = useState<Record<string, 'like' | 'dislike'>>({});
-  const [generatingImages, setGeneratingImages] = useState<Set<string>>(new Set());
   const [history, setHistory] = useState<any[]>([]);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,17 +72,6 @@ export default function App() {
     showNotification(like ? "¡Me gusta guardado! Aprenderemos de esto." : "Entendido, ajustaremos tus recomendaciones.");
   };
 
-  const handleGenerateImage = async (id: string, prompt: string) => {
-    if (generatingImages.has(id)) return;
-    setGeneratingImages(prev => new Set(prev).add(id));
-    try {
-      const url = await generateOutfitImage(prompt);
-      if (url) setOutfitImages(prev => ({ ...prev, [id]: url }));
-    } finally {
-      setGeneratingImages(prev => { const s = new Set(prev); s.delete(id); return s; });
-    }
-  };
-
   const handleDownloadAnalysis = () => {
     const images = Object.values(outfitImages);
     const firstImageUrl = images[0] as string | undefined;
@@ -113,6 +101,54 @@ export default function App() {
       setOutfitPlans(plans);
       setFeedbacks({}); // Clear current session feedbacks for new set
       
+      // 3. Generate images (visualizing) - Sequential to avoid 429 quota exhaustion
+      setStatus('visualizing');
+      
+      // Helper for image generation with simple retry
+      const fetchWithRetry = async (prompt: string, retries = 6): Promise<string | null> => {
+        for (let i = 0; i <= retries; i++) {
+          try {
+            return await generateOutfitImage(prompt);
+          } catch (err: any) {
+            const errStr = JSON.stringify(err);
+            console.warn(`Intento de imagen ${i + 1} fallido:`, errStr);
+            
+            if (i === retries) throw err;
+            
+            const isRateLimit = errStr.includes('429') || err?.status === 429;
+            const isHighDemand = errStr.includes('503') || err?.status === 503 || errStr.toLowerCase().includes('high demand');
+            const isInternalError = errStr.includes('500') || err?.status === 500;
+            
+            if (isRateLimit || isHighDemand || isInternalError) {
+              // Longer wait for 503/High Demand
+              const baseWait = isHighDemand ? 4000 : 2000;
+              const waitTime = Math.pow(2, i) * baseWait;
+              await new Promise(resolve => setTimeout(resolve, waitTime));
+            } else {
+              throw err;
+            }
+          }
+        }
+        return null;
+      };
+
+      for (let i = 0; i < plans.length; i++) {
+        const plan = plans[i];
+        
+        const lifestyleUrl = await fetchWithRetry(plan.imagePrompt);
+        if (lifestyleUrl) {
+          setOutfitImages(prev => ({ ...prev, [`${plan.occasion}-${i}`]: lifestyleUrl }));
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        const flatLayUrl = await fetchWithRetry(plan.flatLayPrompt);
+        if (flatLayUrl) {
+          setOutfitImages(prev => ({ ...prev, [`${plan.occasion}-${i}-flat`]: flatLayUrl }));
+        }
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
       if (user) {
         await dbService.saveStylingHistory(user.uid, itemAnalysis, plans, gender, preferredOccasion, ageRange);
         const historyData = await dbService.getHistory(user.uid);
@@ -141,7 +177,6 @@ export default function App() {
     setAnalysis(null);
     setOutfitPlans([]);
     setOutfitImages({});
-    setGeneratingImages(new Set());
     setError(null);
     setFilter('All');
   };
@@ -405,18 +440,19 @@ export default function App() {
           )}
 
           {status !== 'idle' && status !== 'completed' && status !== 'error' && (
-            <motion.section
+            <motion.section 
               key="loader"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <Loader
+              <Loader 
                 gender={gender}
                 message={
-                  status === 'analyzing' ? 'Decodificando patrones textiles' :
-                  'Diseñando ediciones de ocasión'
-                }
+                  status === 'analyzing' ? 'Decodificando patrones textiles' : 
+                  status === 'planning' ? 'Diseñando ediciones de ocasión' : 
+                  'Puliendo composiciones virtuales'
+                } 
               />
             </motion.section>
           )}
@@ -487,15 +523,13 @@ export default function App() {
                           transition={{ duration: 0.4 }}
                           className="glass p-5 flex flex-col h-full"
                         >
-                          <OutfitCard
-                            outfit={outfit}
-                            imageUrl={imageUrl}
+                          <OutfitCard 
+                            outfit={outfit} 
+                            imageUrl={imageUrl} 
                             flatUrl={flatUrl}
-                            index={index}
+                            index={index} 
                             feedback={feedback}
                             onFeedback={(like) => handleFeedback(id, outfit, like)}
-                            onGenerateImage={() => handleGenerateImage(id, outfit.imagePrompt)}
-                            isGenerating={generatingImages.has(id)}
                           />
                           
                           <div className="mt-4 p-4 glass-card text-[10px] leading-relaxed opacity-70 italic border-t border-black/5">
