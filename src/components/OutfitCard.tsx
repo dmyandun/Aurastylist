@@ -10,9 +10,11 @@ interface OutfitCardProps {
   index: number;
   onFeedback?: (like: boolean) => void;
   feedback?: 'like' | 'dislike' | null;
+  onGenerateImage?: () => void;
+  isGenerating?: boolean;
 }
 
-export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, imageUrl, flatUrl, index, onFeedback, feedback }) => {
+export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, imageUrl, flatUrl, index, onFeedback, feedback, onGenerateImage, isGenerating }) => {
   const [isFlipped, setIsFlipped] = React.useState(false);
 
   const handleDownload = (e: React.MouseEvent) => {
@@ -67,16 +69,26 @@ export const OutfitCard: React.FC<OutfitCardProps> = ({ outfit, imageUrl, flatUr
           {/* Front: Editorial Lifestyle */}
           <div className="absolute inset-0 backface-hidden bg-white/5">
             {imageUrl ? (
-              <motion.img 
-                src={imageUrl} 
-                alt={`${outfit.occasion} Lifestyle`} 
+              <motion.img
+                src={imageUrl}
+                alt={`${outfit.occasion} Lifestyle`}
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                 referrerPolicy="no-referrer"
               />
-            ) : (
+            ) : isGenerating ? (
               <div className="w-full h-full flex flex-col items-center justify-center space-y-3 p-8 text-center bg-white/5">
-                <Sparkles className="w-8 h-8 text-black/10 animate-pulse" />
-                <p className="text-black/30 text-[10px] uppercase tracking-widest font-bold">Refinando Vibe...</p>
+                <Sparkles className="w-8 h-8 text-black/20 animate-pulse" />
+                <p className="text-black/40 text-[10px] uppercase tracking-widest font-bold">Generando imagen...</p>
+              </div>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center space-y-4 p-8 text-center bg-white/5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); onGenerateImage?.(); }}
+                  className="px-5 py-2.5 glass bg-black/5 hover:bg-black/10 active:scale-95 transition-all text-[10px] font-bold uppercase tracking-widest text-black/60 hover:text-black/90 rounded-2xl border border-black/10"
+                >
+                  Generar Look
+                </button>
+                <p className="text-black/20 text-[9px] uppercase tracking-widest">Imagen bajo demanda</p>
               </div>
             )}
           </div>
