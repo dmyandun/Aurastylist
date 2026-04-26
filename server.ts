@@ -53,7 +53,7 @@ async function startServer() {
     if (!genAI) return res.status(500).json({ error: "Gemini Key missing" });
     try {
       const { base64, mimeType } = req.body;
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
       const result = await model.generateContent([
         "Analiza esta prenda para un estilista de lujo. Identifica detalles técnicos como la orientación de los patrones (ej: rayas verticales/horizontales). Devuelve SOLO JSON con: { 'name': string, 'colorPalette': string[], 'styleTags': string[], 'patterns': string, 'styleTips': string[] }. Todo en español.",
@@ -75,7 +75,7 @@ async function startServer() {
     if (!genAI) return res.status(500).json({ error: "Gemini Key missing" });
     try {
       const { prompt } = req.body;
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
